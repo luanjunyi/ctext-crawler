@@ -21,6 +21,7 @@ CTEXT_ROOT_URL = 'https://ctext.org'
 class Chapter:
     title: str
     texts: List[str]
+    loc: int
 
 
 @dataclass
@@ -45,11 +46,12 @@ class BookCrawler:
             print(f"Request failed: {e}")
             return None
 
-    def __init__(self, url, title, chapter_href_filter: Callable[[str], bool], max_chapters=None):
+    def __init__(self, url, title, chapter_href_filter: Callable[[str], bool], max_chapters=None, chapter_index_start=0):
         self.root_url = url
         self.title = title
         self.chapter_href_filter = chapter_href_filter
         self.max_chapters = max_chapters
+        self.chapter_index_start = chapter_index_start
 
     def crawl_book(self) -> Book:
         root_html = BookCrawler.fetch_html(self.root_url)
@@ -59,7 +61,7 @@ class BookCrawler:
         soup = BeautifulSoup(root_html, 'html.parser')
         chapters: List[Chapter] = []
 
-        chapter_idx = 1
+        chapter_idx = self.chapter_index_start
         for link in soup.find('div', id="content3").find_all('a'):
             href = link.get('href')
             # Modify this if needed for better filtering
@@ -67,19 +69,21 @@ class BookCrawler:
                 chapter_url = urljoin(CTEXT_ROOT_URL, href)
                 link_text = link.text.strip()
                 print(
-                    f"Crawling chapter {chapter_idx}: {link_text}, {chapter_url}")
-                chapter_idx += 1
-                chapter = self.crawl_chapter(chapter_url, title=link_text)
+                    f"[Crawling chapter {chapter_idx}]: {link_text}, {chapter_url}")
+                chapter = self.crawl_chapter(
+                    chapter_index=chapter_idx,
+                    url=chapter_url, title=link_text)
                 chapters.append(chapter)
+                chapter_idx += 1
             else:
                 print(f"Skipping {link.text.strip()},  {href}")
 
-            if self.max_chapters and chapter_idx > self.max_chapters:
+            if self.max_chapters and chapter_idx >= self.max_chapters:
                 break
         self.book = Book(name=self.title, chapters=chapters)
         return self.book
 
-    def crawl_chapter(self, url, title="") -> Chapter:
+    def crawl_chapter(self, chapter_index, url, title="") -> Chapter:
         chapter_html = BookCrawler.fetch_html(url)
         assert chapter_html is not None, f"Failed to fetch chapter page from {url}"
 
@@ -90,7 +94,7 @@ class BookCrawler:
         # import pdb
         # pdb.set_trace()
 
-        return Chapter(title=title, texts='\n'.join(sections))
+        return Chapter(title=title, texts='\n'.join(sections), loc=chapter_index)
 
     def export_to_json(self, json_path=""):
         if not json_path:
@@ -115,13 +119,16 @@ if __name__ == "__main__":
                      help="A regex string to filter out chapter urls, for example, 'huangdi-neijing/.+/zhs'")
     arg.add_argument('--max-chapters', type=int, default=None,
                      help="The max number of chapters to crawl, useful for testing")
+    arg.add_argument('--chapter-index-start', type=int, default=0,
+                     help="The index of the first chapter, useful for concatenating multiple crawls")
     config = arg.parse_args()
 
     crawler = BookCrawler(config.url,
                           title=config.title,
                           chapter_href_filter=lambda x: re.match(
                               config.chapter_filter_regex, x) is not None,
-                          max_chapters=config.max_chapters)
+                          max_chapters=config.max_chapters,
+                          chapter_index_start=config.chapter_index_start)
 
     crawler.crawl_book()
     crawler.export_to_json()
