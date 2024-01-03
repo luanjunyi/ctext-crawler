@@ -1,5 +1,20 @@
 '''
 This crawler is for ctext.org, which is a website that hosts Chinese classics.
+
+黄帝内经 - 素问
+
+python crawl.py --url="https://ctext.org/huangdi-neijing/suwen/zhs" \
+    --title="黄帝内经 - 素问" \
+    --chapter-filter-regex="huangdi-neijing/.+/zhs" \
+    --chapter-index-start=0
+
+
+黄帝内经 - 灵枢
+
+python crawl.py --url="https://ctext.org/huangdi-neijing/ling-shu-jing/zhs" \
+    --title="黄帝内经 - 灵枢" \
+    --chapter-filter-regex="huangdi-neijing/.+/zhs" \
+    --chapter-index-start=81
 '''
 
 from dataclasses import dataclass, asdict
@@ -11,8 +26,9 @@ import argparse
 from urllib.parse import urljoin
 from typing import Callable, List
 
-
 from bs4 import BeautifulSoup
+
+from postprocessing import postprocess
 
 CTEXT_ROOT_URL = 'https://ctext.org'
 
@@ -36,15 +52,12 @@ class BookCrawler:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.77 Safari/537.36'
         }
-        try:
-            print(f"Opening {url}")
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-            time.sleep(1)
-            return response.text
-        except requests.RequestException as e:
-            print(f"Request failed: {e}")
-            return None
+
+        print(f"Opening {url}")
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        time.sleep(1)
+        return response.text
 
     def __init__(self, url, title, chapter_href_filter: Callable[[str], bool], max_chapters=None, chapter_index_start=0):
         self.root_url = url
@@ -90,7 +103,8 @@ class BookCrawler:
         s = BeautifulSoup(chapter_html, 'html.parser')
         if not title:
             title = s.find('h2').text.strip()
-        sections = [t.text.strip() for t in s.select("td[class='ctext']")]
+        sections = [postprocess(t.text)
+                    for t in s.select("td[class='ctext']")]
         # import pdb
         # pdb.set_trace()
 
