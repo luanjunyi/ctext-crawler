@@ -50,7 +50,8 @@ class Chapter:
 @dataclass
 class Section:
     title: str
-    chapter_range: tuple[int, int]  # chapter range, 0 based index, inclusive
+    beginChapterIdx: int
+    endChapterIdx: int
 
 
 @dataclass
@@ -93,7 +94,8 @@ class BookCrawler:
             for chapter in book.chapters:
                 chapter.loc = base + chapter.loc
             section = Section(title=book.name,
-                              chapter_range=(book.chapters[0].loc, book.chapters[-1].loc))
+                              beginChapterIdx=book.chapters[0].loc,
+                              endChapterIdx=book.chapters[-1].loc)
             canon.chapters.extend(book.chapters)
             canon.sections.append(section)
 
